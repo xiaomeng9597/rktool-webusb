@@ -1,0 +1,40 @@
+Index: rkdeveloptool/main.cpp
+===================================================================
+--- rkdeveloptool.orig/main.cpp
++++ rkdeveloptool/main.cpp
+@@ -2705,18 +2705,7 @@ bool erase_partition(CRKUsbComm *pComm,
+ 	int iRet;
+ 	while (uiSize)
+ 	{
+-		if (uiSize>=uiErase)
+-		{
+-			iRet = pComm->RKU_EraseLBA(uiOffset,uiErase);
+-			uiSize -= uiErase;
+-			uiOffset += uiErase;
+-		}
+-		else
+-		{
+-			iRet = pComm->RKU_EraseLBA(uiOffset,uiSize);
+-			uiSize = 0;
+-			uiOffset += uiSize;
+-		}
++		iRet = pComm->RKU_EraseLBA(uiOffset,uiSize>=uiErase?uiErase:uiSize);
+ 		if (iRet!=ERR_SUCCESS)
+ 		{
+ 			if (g_pLogObject)
+@@ -2725,6 +2714,15 @@ bool erase_partition(CRKUsbComm *pComm,
+ 			}
+ 			bSuccess = false;
+ 			break;
++		} else if (uiSize>=uiErase)
++		{
++			uiSize -= uiErase;
++			uiOffset += uiErase;
++		}
++		else
++		{
++			uiSize = 0;
++			uiOffset += uiSize;
+ 		}
+ 	}
+ 	return bSuccess;

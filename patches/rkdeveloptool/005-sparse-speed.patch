@@ -1,0 +1,57 @@
+Index: rkdeveloptool/main.cpp
+===================================================================
+--- rkdeveloptool.orig/main.cpp
++++ rkdeveloptool/main.cpp
+@@ -2700,12 +2700,30 @@ EXIT_UBI_ERASE:
+ }
+ bool erase_partition(CRKUsbComm *pComm, UINT uiOffset, UINT uiSize)
+ {
++#ifdef __EMSCRIPTEN__
++	UINT uiErase=1024*512;
++	UINT wcount;
++#else
+ 	UINT uiErase=1024*32;
++#endif
+ 	bool bSuccess = true;
+ 	int iRet;
+ 	while (uiSize)
+ 	{
++#ifdef __EMSCRIPTEN__
++		while (true) {
++			wcount = uiSize >= uiErase ? uiErase : uiSize;
++			iRet = pComm->RKU_EraseLBA(uiOffset, wcount);
++			if (iRet == ERR_FAILED && uiErase > 1024 * 32) {
++				while (uiErase > 1024 * 32 && uiErase >= wcount)
++					uiErase >>= 1;
++				fprintf(stderr, "WARN:Erase LBA failed with %u B, try smaller max erase size: %u KB\r\n", wcount, uiErase / 1024);
++			} else
++				break;
++		}
++#else
+ 		iRet = pComm->RKU_EraseLBA(uiOffset,uiSize>=uiErase?uiErase:uiSize);
++#endif
+ 		if (iRet!=ERR_SUCCESS)
+ 		{
+ 			if (g_pLogObject)
+@@ -2713,6 +2731,7 @@ bool erase_partition(CRKUsbComm *pComm,
+ 				g_pLogObject->Record("ERROR:erase_partition failed,err=%d",iRet);
+ 			}
+ 			bSuccess = false;
++			fprintf(stderr, "ERROR:Erase LBA failed, offset=%u, size(remaining)=%u\r\n", uiOffset, uiSize);
+ 			break;
+ 		} else if (uiSize>=uiErase)
+ 		{
+@@ -2794,11 +2813,13 @@ bool write_sparse_lba(STRUCT_RKDEVICE_DE
+ 		curChunk = 0;
+ 		if (uiSize==(u32)-1)
+ 			uiSize = ALIGN(iFileSize, SECTOR_SIZE);
++		printf("Erase partition before writing sparse image...\r\n");
+ 		bRet = erase_partition(pComm, uiBegin, uiSize);
+ 		if (!bRet) {
+ 			printf("%s failed, erase partition error\r\n", __func__);
+ 			goto Exit_WriteSparseLBA;
+ 		}
++		printf("Erase partition done, start writing sparse image...\r\n");
+ 		while(curChunk < header.total_chunks) 
+ 		{
+ 			if (!EatSparseChunk(file, chunk)) {
